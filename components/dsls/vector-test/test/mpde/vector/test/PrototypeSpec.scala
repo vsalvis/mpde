@@ -2,7 +2,6 @@ package mpde.vector.test
 
 import org.scalatest._
 import collection.mutable.Stack
-
 import dsl.la.norep._
 import dsl.la._
 import org.junit.runner.RunWith
@@ -108,6 +107,19 @@ class PrototypeSpec extends FlatSpec with ShouldMatchers {
       //        }
       //      }
       //            dsl.la.DenseVector(1,2,3).map(x => x + 1)
+    }
+    ()
+  }
+  
+  it should "rewire assignments, definition of vars and vals and return statements" in {
+    val x = dsl.la.laLift {
+      def main: List[Int] = {
+      var a = 3;
+      var b:List[Int] = Nil;
+      b = a::a::Nil;
+      return b;
+      }
+      main
     }
     ()
   }

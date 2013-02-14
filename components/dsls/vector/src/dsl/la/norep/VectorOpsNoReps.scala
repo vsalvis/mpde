@@ -193,6 +193,12 @@ trait IfThenElseDSL extends BooleanDSL with Base {
   def __ifThenElse[T](c: ⇒ Boolean, t: T, e: T) = ???
 }
 
+trait VariableEmbeddingDSL extends Base {
+  def __newVar[T](init: T) = ???
+  def __assign[U, V](lhs: U, rhs: V) = ???
+  def __return[T](expr: T) = ???
+}
+
 //TODO try to remove it and test without TupleDSL
 //trait TupleDSL extends Base {
 //  type Tuple2[T1, T2] = Tuple2Ops[T1, T2]
@@ -214,7 +220,7 @@ trait IfThenElseDSL extends BooleanDSL with Base {
 //  }
 //}
 
-trait VectorDSL extends ClassTagOps with IfThenElseDSL with ArrayDSL with IntDSL with DoubleDSL with NumericOps with Base with Interpret {
+trait VectorDSL extends ClassTagOps with VariableEmbeddingDSL with IfThenElseDSL with ArrayDSL with IntDSL with DoubleDSL with NumericOps with Base with Interpret {
   type Vector[T] = VectorOps[T]
 
   //TODO (NEW) (TOASK) - where should we provide implementation for methods of VectorOps
