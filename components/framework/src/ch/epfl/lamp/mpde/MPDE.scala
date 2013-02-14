@@ -212,13 +212,20 @@ final class MPDETransformer[C <: Context, T](
 
         // TODO var, while, do while, return, partial functions, try catch, pattern matching
 
-        case ValDef(mods, sym, _, rhs) => // TODO This does var and val definition lifting
-          ValDef(mods, sym, EmptyTree, rewire("__newVar", List(transform(rhs))))
-          
-        case Return(e) => rewire("__return", List(transform(e)))
-          
-        case Assign(lhs, rhs) => rewire("__assign", List(transform(rhs), transform(lhs)))
-        
+        // Variable definition, assignment and return : VariableEmbeddingDSL
+        case ValDef(mods, sym, tpt, rhs) ⇒ // TODO This does var and val definition lifting
+          ValDef(mods, sym, tpt, rewire("__newVar", List(transform(rhs)))) // If there is a type transformer, it would be good to transform also the type tree
+
+        case Return(e)        ⇒ rewire("__return", List(transform(e)))
+
+        case Assign(lhs, rhs) ⇒ rewire("__assign", List(transform(rhs), transform(lhs)))
+
+        // While and DoWhile: ImperativeDSL
+        case LabelDef(sym, List(), If(cond, Block(body :: Nil, Apply(Select(This(className), label), args)), Literal(Constant()))) if sym == label ⇒ // While
+          rewire("__whileDo", List(transform(cond), transform(body)))
+        case LabelDef(sym, List(), Block(body :: Nil, If(cond, Apply(Select(This(className), label), args), Literal(Constant())))) if sym == label ⇒ // DoWhile
+          rewire("__doWhile", List(transform(body), transform(cond)))
+
         case _ ⇒
           super.transform(tree)
       }

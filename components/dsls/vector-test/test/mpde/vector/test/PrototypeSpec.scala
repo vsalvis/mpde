@@ -124,5 +124,17 @@ class PrototypeSpec extends FlatSpec with ShouldMatchers {
     ()
   }
 
+  it should "rewire while loops to imperativeDSL methods" in {
+    var b = 0
+    while (true) {
+      var a =1
+      b = a + b
+    }
+    do {
+      b = 1
+    } while (false)
+  }
+  ()
+  
 }
 

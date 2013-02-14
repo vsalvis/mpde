@@ -193,10 +193,21 @@ trait IfThenElseDSL extends BooleanDSL with Base {
   def __ifThenElse[T](c: ⇒ Boolean, t: T, e: T) = ???
 }
 
+/**
+ * The necessary methods to embed variables in a DSL
+ */
 trait VariableEmbeddingDSL extends Base {
   def __newVar[T](init: T) = ???
   def __assign[U, V](lhs: U, rhs: V) = ???
   def __return[T](expr: T) = ???
+}
+
+/**
+ * The necessary method to handle an imperative language (with while and do while loops)
+ */
+trait ImperativeDSL extends VariableEmbeddingDSL with BooleanDSL {
+  def __whileDo[T](cond: ⇒ Boolean, body: T) = ???
+  def __doWhile[T](body: T, cond: ⇒ Boolean) = ???
 }
 
 //TODO try to remove it and test without TupleDSL
@@ -220,7 +231,7 @@ trait VariableEmbeddingDSL extends Base {
 //  }
 //}
 
-trait VectorDSL extends ClassTagOps with VariableEmbeddingDSL with IfThenElseDSL with ArrayDSL with IntDSL with DoubleDSL with NumericOps with Base with Interpret {
+trait VectorDSL extends ClassTagOps with ImperativeDSL with IfThenElseDSL with ArrayDSL with IntDSL with DoubleDSL with NumericOps with Base with Interpret {
   type Vector[T] = VectorOps[T]
 
   //TODO (NEW) (TOASK) - where should we provide implementation for methods of VectorOps
