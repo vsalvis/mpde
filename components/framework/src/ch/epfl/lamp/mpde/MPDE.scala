@@ -160,6 +160,7 @@ final class MPDETransformer[C <: Context, T](
     var ident = 0
 
     override def transform(tree: Tree): Tree = {
+      def rewire(methName: String, args: List[Tree]) = Apply(Select(This(newTypeName(className)), newTermName(methName)), args)
       markDSLDefinition(tree)
 
       log(" " * ident + " ==> " + tree)
@@ -211,6 +212,13 @@ final class MPDETransformer[C <: Context, T](
 
         // TODO var, while, do while, return, partial functions, try catch, pattern matching
 
+        case ValDef(mods, sym, _, rhs) => // TODO This does var and val definition lifting
+          ValDef(mods, sym, EmptyTree, rewire("__newVar", List(transform(rhs))))
+          
+        case Return(e) => rewire("__return", List(transform(e)))
+          
+        case Assign(lhs, rhs) => rewire("__assign", List(transform(rhs), transform(lhs)))
+        
         case _ ⇒
           super.transform(tree)
       }
