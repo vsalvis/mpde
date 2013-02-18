@@ -271,12 +271,12 @@ final class MPDETransformer[C <: Context, T](
         case Assign(lhs, rhs) ⇒ rewire("__assign", List(transform(rhs), transform(lhs)))
 
         // While and DoWhile: ImperativeDSL
-        case LabelDef(sym, List(), If(cond, Block(body :: Nil, Apply(Select(This(className), label), args)), Literal(Constant()))) if sym == label ⇒ // While
+        case LabelDef(sym, List(), If(cond, Block(body :: Nil, Apply(Ident(label), List())), Literal(Constant()))) if label == sym ⇒ // While
           rewire("__whileDo", List(transform(cond), transform(body)))
-        case LabelDef(sym, List(), Block(body :: Nil, If(cond, Apply(Select(This(className), label), args), Literal(Constant())))) if sym == label ⇒ // DoWhile
+        case LabelDef(sym, List(), Block(body :: Nil, If(cond, Apply(Ident(label), List()), Literal(Constant())))) if label == sym ⇒ // DoWhile
           rewire("__doWhile", List(transform(body), transform(cond)))
-          
-        case _ ⇒
+
+        case t ⇒
           super.transform(tree)
       }
 

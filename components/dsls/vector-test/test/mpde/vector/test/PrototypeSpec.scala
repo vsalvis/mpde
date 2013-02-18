@@ -81,16 +81,16 @@ class PrototypeSpec extends FlatSpec with ShouldMatchers {
   // new Exception()
   // Select(New(Select(Select(Ident(scala), scala.package), newTypeName("Exception"))), nme.CONSTRUCTOR)
 
-  it should "rewire object applications with our own numeric and class tag" in {
-    val x = dsl.la.laLift {
-      val y = dsl.la.DenseVector(1, 2, 3)
-      import dsl.la
-      val z = la.DenseVector(1, 2, 3)
-      import dsl.la.TestObject
-      val dv = DenseVector(1, 2, 3)
-      ()
-    }
-  }
+//    it should "rewire object applications with our own numeric and class tag" in {
+//      val x = dsl.la.laLift {
+//        val y = dsl.la.DenseVector(1, 2, 3)
+//        import dsl.la
+//        val z = la.DenseVector(1, 2, 3)
+//        import dsl.la.TestObject
+//        val dv = DenseVector(1, 2, 3)
+//        ()
+//      }
+//    }
 
   it should "rewire language features to methods" in {
     val x = dsl.la.laLift {
@@ -110,14 +110,14 @@ class PrototypeSpec extends FlatSpec with ShouldMatchers {
     }
     ()
   }
-  
+
   it should "rewire assignments, definition of vars and vals and return statements" in {
     val x = dsl.la.laLift {
       def main: Int = {
-      var a = 3;
-      var b = 1;
-      b = a+a;
-      return b;
+        var a = 3;
+        var b = 1;
+        b = a + a;
+        return b;
       }
       main
     }
@@ -125,16 +125,18 @@ class PrototypeSpec extends FlatSpec with ShouldMatchers {
   }
 
   it should "rewire while loops to imperativeDSL methods" in {
-    var b = 0
-    while (true) {
-      var a =1
-      b = a + b
+    val x = dsl.la.laLift {
+      var b = 0
+      while (true) {
+        var a = 1
+        b = a;
+      }
+      do {
+        b = 1
+      } while (false)
     }
-    do {
-      b = 1
-    } while (false)
+    ()
   }
-  ()
-  
+
 }
 
