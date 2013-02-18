@@ -213,7 +213,7 @@ final class MPDETransformer[C <: Context, T](
         // TODO var, while, do while, return, partial functions, try catch, pattern matching
 
         // Variable definition, assignment and return : VariableEmbeddingDSL
-        case ValDef(mods, sym, tpt, rhs) ⇒ // TODO This does var and val definition lifting
+        case ValDef(mods, sym, tpt, rhs) ⇒ // TODO This does var and val definition lifting. Is that OK ?
           ValDef(mods, sym, tpt, rewire("__newVar", List(transform(rhs)))) // If there is a type transformer, it would be good to transform also the type tree
 
         case Return(e)        ⇒ rewire("__return", List(transform(e)))
@@ -225,7 +225,7 @@ final class MPDETransformer[C <: Context, T](
           rewire("__whileDo", List(transform(cond), transform(body)))
         case LabelDef(sym, List(), Block(body :: Nil, If(cond, Apply(Select(This(className), label), args), Literal(Constant())))) if sym == label ⇒ // DoWhile
           rewire("__doWhile", List(transform(body), transform(cond)))
-
+          
         case _ ⇒
           super.transform(tree)
       }

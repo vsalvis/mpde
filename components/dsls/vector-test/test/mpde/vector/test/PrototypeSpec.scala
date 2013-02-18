@@ -113,10 +113,10 @@ class PrototypeSpec extends FlatSpec with ShouldMatchers {
   
   it should "rewire assignments, definition of vars and vals and return statements" in {
     val x = dsl.la.laLift {
-      def main: List[Int] = {
+      def main: Int = {
       var a = 3;
-      var b:List[Int] = Nil;
-      b = a::a::Nil;
+      var b = 1;
+      b = a+a;
       return b;
       }
       main
