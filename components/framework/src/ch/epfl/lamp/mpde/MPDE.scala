@@ -165,240 +165,51 @@ final class MPDETransformer[C <: Context, T](
         case typTree: TypTree ⇒ {
           //FOR NOREP type
           if (!rep) {
-            /*
-            ***** TypeRef(pre, sym, args)
-            ***** pre = scala.type
-            ***** sym = class Int
-            ***** args = List()
-            */
-
-            /*
-            ***** TypeRef(pre, sym, args)
-            ***** pre = dsl.la.type
-            ***** sym = trait Vector
-            ***** args = List(Int)
-            */
-
-            //I can construct tree based on types
-            //or I can construct type, add it to TypeTree
+            //Construct tree based on types
             def constructTree(inType: Type): Tree = {
-              println("***** BEFORE CONSTRUCTION *****")
-              println("Construct Tree")
-              println("inType = " + inType)
-              var newTree: Tree = null
-              val result: Tree = inType match {
+              val result = inType match {
                 case TypeRef(pre, sym, args) ⇒ {
-                  if (args.isEmpty) { //TypeTree
-                    println("--- args is empty ---")
-                    println("className = " + className)
-                    println("inType.typeSymbol.name = " + inType.typeSymbol.name)
-
-                    newTree = Select(This(newTypeName(className)), inType.typeSymbol.name)
-                    newTree
+                  if (args.isEmpty) { //Simple type
+                    Select(This(newTypeName(className)), inType.typeSymbol.name)
                   } else { //AppliedTypeTree
-                    println("--- args is NOT empty ---")
-                    println("className = " + className)
-                    println("inType.typeSymbol.name = " + sym.name)
-                    val baseTree: Tree = Select(This(newTypeName(className)), sym.name)
+                    val baseTree = Select(This(newTypeName(className)), sym.name)
                     val typeTrees = args map { x ⇒ constructTree(x) }
-                    newTree = AppliedTypeTree(baseTree, typeTrees)
-                    newTree
+                    AppliedTypeTree(baseTree, typeTrees)
                   }
                 }
                 case another @ _ ⇒ {
-                  println("another case")
                   TypeTree(another)
                 }
               }
               result
             }
 
-            def reconstructTree(inType: Type): Tree = {
-              println("***** BEFORE RECONSTRUCTION *****")
-              println("Reconstruct Tree")
-              println("inType = " + inType)
+            //Construct result type and add it to tree
+            def reconstructTreeUsingType(inType: Type): Tree = {
               val newType: Type = inType match {
                 case TypeRef(pre, sym, args) ⇒ {
                   if (args.isEmpty) { //TypeTree
-                    println("--- args is empty ---")
-                    println("className = " + className)
-                    println("inType.typeSymbol.name = " + inType.typeSymbol.name)
-
-                    //here we need something another instead of NoType
+                    //TODO here we need something another instead of NoType
+                    //using NoType gives us <notype>#Vector[Int] - ERROR
                     TypeRef(NoType, sym, args)
                   } else { //AppliedTypeTree
-                    println("--- args is NOT empty ---")
-                    println("className = " + className)
-                    println("inType.typeSymbol.name = " + sym.name)
-
-                    val newArgs = args map { x ⇒ reconstructTree(x) }
+                    val newArgs = args map { x ⇒ reconstructTreeUsingType(x) }
                     TypeRef(NoType, sym, args)
                   }
                 }
                 case another @ _ ⇒ {
-                  println("another case")
                   another
                 }
               }
-              println("new Type is: " + newType)
               TypeTree(newType)
             }
 
-            val oldType = typTree.tpe
-            println("oldType = " + oldType)
-
-            constructTree(oldType)
-            //reconstructTree(oldType)
-
-            //            val typeToLift: Tree = typTree match {
-            //              //if tree is TypeTree and has original tree than process original tree
-            //              //TODO refactor this to case
-            //              case typeTree: TypeTree ⇒
-            //                if (typeTree.original != null) {
-            //                  typeTree.original
-            //                } else typeTree
-            //              case _ ⇒ typTree
-            //            }
-            //            println("*** typeToLift = " + typeToLift)
-            //
-            //            typeToLift match {
-            //              //see another possible type applications
-            //
-            //              //TODO (TOASK) - how to process bounds in Rep DSL? In NORep DSL we just need to change them to our types?
-            //              case tbTree: TypeBoundsTree ⇒ {
-            //                println("*** TypeBoundsTree")
-            //                //TODO process it later
-            //                tree
-            //              }
-            //
-            //              case atTree @ AppliedTypeTree(currentTree, typeTrees) ⇒ {
-            //                println("*** AppliedTypeTree")
-            //                //transform type of AppliedTypeTree
-            //                val mainType = transform(currentTree)
-            //                //transform type parameters
-            //                val typeParams = typeTrees map {
-            //                  x ⇒ transform(x)
-            //                }
-            //                AppliedTypeTree(mainType, typeParams)
-            //              }
-            //
-            //              //TODO find another way to get name
-            //              //get name of Type and produce AST for type with the same name
-            //              //in our DSL
-            //              case tTree @ _ ⇒ {
-            //
-            //                val expr: Tree = if (tTree != null) {
-            //                  println("*** Tree")
-            //                  Select(This(newTypeName(className)), typeToLift.symbol.name)
-            //                } else null
-            //                expr
-            //              }
-            //            }
+            constructTree(typTree.tpe)
+            //reconstructTreeUsingType(typTree.tpe)
 
             //else if Rep DSL
           } else {
             //transform Type1[Type2[...]] => Rep[Type1[Type2[...]]]
-            val tree: Tree = typTree;
-            println("***** TREE to print = " + tree.toString())
-            val tpe = typTree.tpe;
-            //            println("***** tpe.takesTypeArgs = " + tpe.takesTypeArgs)
-            //            println("***** tpe.erasure = " + tpe.erasure)
-            //            println("***** tpe.normalize = " + tpe.normalize)
-            //            println("***** tpe.typeConstructor = " + tpe.typeConstructor)
-            //            println("***** tpe.baseType(tree.symbol) = " + tpe.baseType(tree.symbol))
-            //            println("***** tpe.members = " + tpe.members)
-            //            println("***** tpe.typeSymbol.asType.typeParams = " + tpe.typeSymbol.asType.typeParams)
-            //            println("***** tpe.typeSymbol.asType.typeSignature = " + tpe.typeSymbol.asType.typeSignature)
-            println("BEFORE TYPE SEARCH")
-            tpe match {
-              case WildcardType ⇒
-                println("***** WildcardType")
-              // internal: unknown
-              case BoundedWildcardType(bounds) ⇒
-                println("***** BoundedWildcardType(bounds)")
-                println("***** bounds: " + bounds)
-              // internal: unknown
-              case NoType ⇒
-                println("***** NoType")
-              case NoPrefix ⇒
-                println("***** NoPrefix")
-              case ThisType(sym) ⇒
-                println("***** ThisType(sym)")
-                println("***** sym = " + sym)
-              // sym.this.type
-              case SuperType(thistpe, supertpe) ⇒
-                println("***** WildcardType")
-                println("***** pre = " + thistpe)
-                println("***** sym = " + supertpe)
-              // super references
-              case SingleType(pre, sym) ⇒
-                println("***** SuperType(thistpe, supertpe)")
-                println("***** pre = " + pre)
-                println("***** sym = " + sym)
-              // pre.sym.type
-              case ConstantType(value) ⇒
-                println("***** ConstantType(value)")
-                println("***** value = " + value)
-              // Int(2)
-              case TypeRef(pre, sym, args) ⇒
-                println("***** TypeRef(pre, sym, args)")
-                println("***** pre = " + pre)
-                println("***** sym = " + sym)
-                println("***** args = " + args)
-
-              //TODO using this parameter and recursion we can reconstruct tree!!!
-              // pre.sym[targs]
-              // Outer.this.C would be represented as TypeRef(ThisType(Outer), C, List())
-              case RefinedType(parents, defs) ⇒
-                println("***** RefinedType(parents, defs)")
-                println("***** parents = " + parents)
-                println("***** defs = " + defs)
-              // parent1 with ... with parentn { defs }
-              case ExistentialType(tparams, result) ⇒
-                println("***** ExistentialType(tparams, result)")
-                println("***** tparams = " + tparams)
-                println("***** result = " + result)
-              // result forSome { tparams }
-              case AnnotatedType(annots, tp, selfsym) ⇒
-                println("***** AnnotatedType(annots, tp, selfsym)")
-                println("***** annots = " + annots)
-                println("***** tp = " + tp)
-                println("***** selfsym = " + selfsym)
-              // tp @annots
-
-              // the following are non-value types; you cannot write them down in Scala source.
-
-              case TypeBounds(lo, hi) ⇒
-                println("***** TypeBounds(lo, hi)")
-                println("***** lo = " + lo)
-                println("***** hi = " + hi)
-              // >: lo <: hi
-              case ClassInfoType(parents, defs, clazz) ⇒
-                println("***** ClassInfoType(parents, defs, clazz)")
-                println("***** parents = " + parents)
-                println("***** defs = " + defs)
-                println("***** clazz = " + clazz)
-              // same as RefinedType except as body of class
-              case MethodType(paramtypes, result) ⇒
-                println("***** MethodType(paramtypes, result)")
-                println("***** paramtypes = " + paramtypes)
-                println("***** result = " + result)
-              // (paramtypes)result
-              // For instance def m(): T is represented as MethodType(List(), T)
-              case NullaryMethodType(result) ⇒ // eliminated by uncurry
-                println("***** NullaryMethodType(result)")
-                println("***** result = " + result)
-              // an eval-by-name type
-              // For instance def m: T is represented as NullaryMethodType(T)
-              case PolyType(tparams, result) ⇒
-                println("***** PolyType(tparams, result)")
-                println("***** tparams = " + tparams)
-                println("***** result = " + result)
-              case _ ⇒
-                println("***** TYPE NOT FOUND")
-              // [tparams]result where result is a (Nullary)MethodType or ClassInfoType
-            }
-
             val regenTree: TypeTree = TypeTree(typTree.tpe)
             val expr: Tree =
               AppliedTypeTree(Select(This(newTypeName(className)), newTypeName("Rep")), List(regenTree))
