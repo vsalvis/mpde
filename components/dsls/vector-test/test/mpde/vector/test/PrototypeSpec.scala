@@ -129,13 +129,21 @@ class PrototypeSpec extends FlatSpec with ShouldMatchers {
       var b = 0
       while (true) {
         var a = 1
-        b = a;
+        b = a + a;
       }
       do {
         b = 1
       } while (false)
     }
     ()
+  }
+  
+  it should "not break on shadowing" in {
+    val x = dsl.la.laLift {
+      val w = 1
+      var y = w + 1
+      var z = w + y + 3
+    }
   }
 
 }

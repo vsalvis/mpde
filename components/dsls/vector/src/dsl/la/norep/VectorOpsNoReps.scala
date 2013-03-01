@@ -2,6 +2,8 @@ package dsl.la.norep
 
 import scala.reflect.ClassTag
 import base._
+import scala.reflect.macros.Context
+import scala.language.experimental.macros
 
 trait Base extends LiftBase
 
@@ -189,7 +191,6 @@ trait BooleanDSL extends Base {
 }
 
 trait IfThenElseDSL extends BooleanDSL with Base {
-
   def __ifThenElse[T](c: ⇒ Boolean, t: T, e: T) = ???
 }
 
@@ -231,7 +232,7 @@ trait ImperativeDSL extends VariableEmbeddingDSL with BooleanDSL {
 //  }
 //}
 
-trait VectorDSL extends ClassTagOps with ImperativeDSL with IfThenElseDSL with ArrayDSL with IntDSL with DoubleDSL with NumericOps with Base with Interpret {
+trait VectorDSL extends ClassTagOps with VariableEmbeddingDSL with IfThenElseDSL with ArrayDSL with IntDSL with DoubleDSL with NumericOps with Base with Interpret {
   type Vector[T] = VectorOps[T]
 
   //TODO (NEW) (TOASK) - where should we provide implementation for methods of VectorOps

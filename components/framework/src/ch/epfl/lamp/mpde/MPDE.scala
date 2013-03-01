@@ -131,7 +131,12 @@ final class MPDETransformer[C <: Context, T](
     var ident = 0
 
     override def transform(tree: Tree): Tree = {
-      def rewire(methName: String, args: List[Tree]) = Apply(Select(This(newTypeName(className)), newTermName(methName)), args)
+      def rewire(methName: String, args: List[Tree]) = {
+        if (!featureExists(methName, args.map(_.tpe))) {
+          c.error(tree.pos, "The DSL doesn't support the " + methName + " feature (with " + (args.map(_.tpe).mkString(", ")) + ")!")
+        }
+        Apply(Select(This(newTypeName(className)), newTermName(methName)), args)
+      }
       markDSLDefinition(tree)
 
       log(" " * ident + " ==> " + tree)
@@ -175,6 +180,11 @@ final class MPDETransformer[C <: Context, T](
         case s @ Select(inn, name) if s.symbol.isMethod ⇒
           Select(transform(inn), name)
 
+        case Apply(Select(inn, name), args) ⇒
+          if (!methodExists(inn.tpe, name.encoded, args.map(_.tpe))) {
+            c.error(tree.pos, "The operation " + name.decoded + (args.map(_.tpe).mkString("(", ", ", ")")) + " is undefined on " + inn.tpe)
+          }
+          Apply(Select(transform(inn), name), args.map(transform))
         // replaces objects with their cake counterparts
         case s @ Select(inn, name) ⇒ // TODO this needs to be narrowed down if s.symbol.isModule =>
           Ident(name)
@@ -307,6 +317,22 @@ final class MPDETransformer[C <: Context, T](
       true
     } catch {
       case e: Throwable ⇒
+        false
+    }
+  }
+
+  def featureExists(feature: String, args: List[Type]): Boolean = {
+
+    def dummyTree(tpe: Type) = TypeApply(Select(Literal(Constant(())), newTermName("asInstanceOf")), List(constructTypeTree(tpe)))
+
+    try { // this might be a performance problem later. For now it will do the work.
+      log("* " * 10)
+      log("testing feature: " + feature)
+      c.typeCheck(Block(composeDSL(Apply(Select(This(className), newTermName(feature)), args.map(dummyTree))), Literal(Constant(()))))
+      true
+    } catch {
+      case e: Throwable ⇒
+        log("not supported")
         false
     }
   }
