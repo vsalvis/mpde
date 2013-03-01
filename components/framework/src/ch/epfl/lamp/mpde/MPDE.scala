@@ -101,7 +101,6 @@ final class MPDETransformer[C <: Context, T](
   /*
    * TODO (Duy)
    * 3) Enabling static analysis of the DSLs at compile time.
-   *
    */
   def staticallyCheck = false
 
@@ -163,62 +162,8 @@ final class MPDETransformer[C <: Context, T](
           retDef
         }
 
-        case typTree: TypTree ⇒ {
-          //FOR NOREP type
-          if (!rep) {
-
-            val typeToLift: Tree = typTree match {
-              //if tree is TypeTree and has original tree than process original tree
-              //TODO refactor this to case
-              case typeTree: TypeTree ⇒
-                if (typeTree.original != null) {
-                  typeTree.original
-                } else typeTree
-              case _ ⇒ typTree
-            }
-            println("*** typeToLift = " + typeToLift)
-
-            typeToLift match {
-              //see another possible type applications
-
-              //TODO (TOASK) - how to process bounds in Rep DSL? In NORep DSL we just need to change them to our types?
-              case tbTree: TypeBoundsTree ⇒ {
-                println("*** TypeBoundsTree")
-                //TODO process it later
-                tree
-              }
-
-              case atTree @ AppliedTypeTree(currentTree, typeTrees) ⇒ {
-                println("*** AppliedTypeTree")
-                //transform type of AppliedTypeTree
-                val mainType = transform(currentTree)
-                //transform type parameters
-                val typeParams = typeTrees map {
-                  x ⇒ transform(x)
-                }
-                AppliedTypeTree(mainType, typeParams)
-              }
-
-              //TODO find another way to get name
-              //get name of Type and produce AST for type with the same name
-              //in our DSL
-              case tTree @ _ ⇒ {
-                val expr: Tree = if (tTree != null) {
-                  println("*** Tree")
-                  Select(This(newTypeName(className)), typeToLift.symbol.name)
-                } else null
-                expr
-              }
-            }
-
-            //else if Rep DSL
-          } else {
-            //transform Type1[Type2[...]] => Rep[Type1[Type2[...]]]
-            val expr: Tree =
-              AppliedTypeTree(Select(This(newTypeName(className)), newTypeName("Rep")), List(typTree))
-            expr
-          }
-        }
+        case typTree: TypTree ⇒
+          constructTypeTree(typTree.tpe)
 
         // re-wire objects
         case s @ Select(Select(inn, t: TermName), name) if s.symbol.isMethod && t.toString == "package" /* ugh, no TermName extractor */ ⇒
@@ -231,30 +176,22 @@ final class MPDETransformer[C <: Context, T](
           Select(transform(inn), name)
 
         // replaces objects with their cake counterparts
-        //TODO check for IntIsIntegral is temporary solution and should be changed
-        //for rep dsl we don't need to replace IntIsIntegral
-        case s @ Select(inn, name) if (!rep) || (name != newTermName("IntIsIntegral")) ⇒ // TODO this needs to be narrowed down if s.symbol.isModule =>
+        case s @ Select(inn, name) ⇒ // TODO this needs to be narrowed down if s.symbol.isModule =>
           Ident(name)
 
         case TypeApply(mth, targs) ⇒ // TODO this needs to be changed for LMS to include a type transformer
           transform(mth)
 
-        // Removes all import statements for now. TODO later it will figure out the DSL modules and will include them into the cake.
+        // Removes all import statements for now. 
+        // TODO later it will figure out the DSL modules and will include them into the cake.
         case Import(_, _) ⇒
           EmptyTree
 
-        // TODO does not work because resetAllAttrs does not remove types from lambdas.
         case f @ Function(params, body) ⇒
-          // TODO for LMS we will put here an explicit type for all the arguments to avoid
-          // inferencer errors.
-          // For polymorphic embedding we will just null it out.
-          log("Function type: " + f.symbol.typeSignature.toString)
-          log("Argument type: " + params.head.symbol.typeSignature.toString)
-
-          //transform params definitions
+          // TODO transform ValDef types here with an explicit type tree.
           val functionParams: List[ValDef] = params map { x ⇒ transform(x).asInstanceOf[ValDef] }
 
-          c.resetAllAttrs(f) // this does not re-infer the type. Why?
+          c.resetAllAttrs(f)
           Function(functionParams, transform(body))
         // re-wire language feature `if` to the method __ifThenElse
         case t @ If(cond, then, elze) ⇒
@@ -293,6 +230,27 @@ final class MPDETransformer[C <: Context, T](
   def interpretMethod = "interpret"
   val dslMethod: String = "main"
   val className = "generated$" + dslName.filter(_ != '.') + MPDETransformer.uID.incrementAndGet
+  def constructTypeTree(inType: Type) = if (rep)
+    constructRepTree(inType)
+  else
+    constructPolyTree(inType)
+
+  def constructPolyTree(inType: Type): Tree = inType match {
+    case TypeRef(pre, sym, args) ⇒
+      if (args.isEmpty) { //Simple type
+        Select(This(newTypeName(className)), inType.typeSymbol.name)
+      } else { //AppliedTypeTree
+        val baseTree = Select(This(newTypeName(className)), sym.name)
+        val typeTrees = args map { x ⇒ constructPolyTree(x) }
+        AppliedTypeTree(baseTree, typeTrees)
+      }
+
+    case another @ _ ⇒
+      TypeTree(another)
+  }
+
+  def constructRepTree(inType: Type): Tree = //transform Type1[Type2[...]] => Rep[Type1[Type2[...]]]
+    AppliedTypeTree(Select(This(newTypeName(className)), newTypeName("Rep")), List(TypeTree(inType)))
 
   /*
    * Utilities.
@@ -335,6 +293,23 @@ final class MPDETransformer[C <: Context, T](
         DefDef(Modifiers(), newTermName(dslMethod), List(), List(List()), Ident(newTypeName("Any")), transformedBody))))
   //     }
   // }
+
+  /*
+   * TODO Emmanuel this can be refined further to include other types of methods (the ones that include type params etc.). We do not care for performance for now. 
+   */
+  def methodExists(obj: Type, methodName: String, args: List[Type]): Boolean = {
+
+    def dummyTree(tpe: Type) = TypeApply(Select(Literal(Constant(())), newTermName("asInstanceOf")), List(constructTypeTree(tpe)))
+    def application(method: String) = Apply(Select(dummyTree(obj), newTermName(methodName)), args.map(dummyTree))
+
+    try { // this might be a performance problem later. For now it will do the work.
+      c.typeCheck(Block(composeDSL(application(methodName)), Literal(Constant(()))))
+      true
+    } catch {
+      case e: Throwable ⇒
+        false
+    }
+  }
 
   def log(s: String) = if (debug) println(s)
 
