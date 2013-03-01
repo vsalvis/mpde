@@ -215,7 +215,7 @@ final class MPDETransformer[C <: Context, T](
 
         case Return(e)        ⇒ rewire("__return", List(transform(e)))
 
-        case Assign(lhs, rhs) ⇒ rewire("__assign", List(transform(rhs), transform(lhs)))
+        case Assign(lhs, rhs) ⇒ rewire("__assign", List(transform(lhs), transform(rhs)))
 
         // While and DoWhile: ImperativeDSL
         case LabelDef(sym, List(), If(cond, Block(body :: Nil, Apply(Ident(label), List())), Literal(Constant()))) if label == sym ⇒ // While
@@ -256,6 +256,7 @@ final class MPDETransformer[C <: Context, T](
       }
 
     case another @ _ ⇒
+      log(another.getClass + ": " + another)
       TypeTree(another)
   }
 
@@ -317,6 +318,7 @@ final class MPDETransformer[C <: Context, T](
       true
     } catch {
       case e: Throwable ⇒
+        e.printStackTrace()
         false
     }
   }
@@ -332,7 +334,6 @@ final class MPDETransformer[C <: Context, T](
       true
     } catch {
       case e: Throwable ⇒
-        log("not supported")
         false
     }
   }
