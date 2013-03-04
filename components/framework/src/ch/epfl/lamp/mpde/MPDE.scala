@@ -4,7 +4,6 @@ package mpde
 import scala.reflect.macros.Context
 import language.experimental.macros
 import mpde.api._
-
 import java.util.concurrent.atomic.AtomicLong
 
 object MPDETransformer {
@@ -211,11 +210,12 @@ final class MPDETransformer[C <: Context, T](
 
         // Variable definition, assignment and return : VariableEmbeddingDSL
         case ValDef(mods, sym, tpt, rhs) ⇒ // TODO This does var and val definition lifting. Is that OK ?
-          ValDef(mods, sym, tpt, rewire("__newVar", List(transform(rhs)))) // If there is a type transformer, it would be good to transform also the type tree
+          ValDef(mods, sym, transform(tpt), rewire("__newVar", List(transform(rhs)))) // If there is a type transformer, it would be good to transform also the type tree
 
-        case Return(e)        ⇒ rewire("__return", List(transform(e)))
+        case Return(e) ⇒ rewire("__return", List(transform(e)))
 
-        case Assign(lhs, rhs) ⇒ rewire("__assign", List(transform(lhs), transform(rhs)))
+        case Assign(lhs, rhs) ⇒
+          rewire("__assign", List(transform(lhs), transform(rhs)))
 
         // While and DoWhile: ImperativeDSL
         case LabelDef(sym, List(), If(cond, Block(body :: Nil, Apply(Ident(label), List())), Literal(Constant()))) if label == sym ⇒ // While
@@ -247,6 +247,7 @@ final class MPDETransformer[C <: Context, T](
 
   def constructPolyTree(inType: Type): Tree = inType match {
     case TypeRef(pre, sym, args) ⇒
+      log("TypeRef(" + pre + ", " + sym + ", " + args + ")")
       if (args.isEmpty) { //Simple type
         Select(This(newTypeName(className)), inType.typeSymbol.name)
       } else { //AppliedTypeTree
@@ -255,6 +256,14 @@ final class MPDETransformer[C <: Context, T](
         AppliedTypeTree(baseTree, typeTrees)
       }
 
+    case ConstantType(c) ⇒
+      log("constant: " + inType.typeSymbol.name)
+      Select(This(newTypeName(className)), inType.typeSymbol.name)
+    case SingleType(pre, sym) ⇒
+      Select(This(newTypeName(className)), inType.typeSymbol.name)
+    case null ⇒
+      log("Aie")
+      TypeTree(inType)
     case another @ _ ⇒
       log(another.getClass + ": " + another)
       TypeTree(another)
