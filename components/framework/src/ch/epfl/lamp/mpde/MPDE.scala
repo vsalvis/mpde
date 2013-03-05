@@ -131,9 +131,6 @@ final class MPDETransformer[C <: Context, T](
 
     override def transform(tree: Tree): Tree = {
       def rewire(methName: String, args: List[Tree]) = {
-        if (!featureExists(methName, args.map(_.tpe))) {
-          c.error(tree.pos, "The DSL doesn't support the " + methName + " feature (with " + (args.map(_.tpe).mkString(", ")) + ")!")
-        }
         Apply(Select(This(newTypeName(className)), newTermName(methName)), args)
       }
       markDSLDefinition(tree)
@@ -204,23 +201,42 @@ final class MPDETransformer[C <: Context, T](
           Function(functionParams, transform(body))
         // re-wire language feature `if` to the method __ifThenElse
         case t @ If(cond, then, elze) ⇒
+          if (!featureExists("__ifThenElse", List(cond.tpe, then.tpe, elze.tpe))) {
+            c.error(tree.pos, "The DSL doesn't support the conditionnal branches!")
+          }
           Apply(Select(This(newTypeName(className)), newTermName("__ifThenElse")), List(transform(cond), transform(then), transform(elze)))
 
         // TODO var, while, do while, return, partial functions, try catch, pattern matching
 
         // Variable definition, assignment and return : VariableEmbeddingDSL
         case ValDef(mods, sym, tpt, rhs) ⇒ // TODO This does var and val definition lifting. Is that OK ?
+          if (!featureExists("__newVar", List(rhs.tpe))) {
+            c.error(tree.pos, "The DSL doesn't support the creation of variables!")
+          }
           ValDef(mods, sym, transform(tpt), rewire("__newVar", List(transform(rhs)))) // If there is a type transformer, it would be good to transform also the type tree
 
-        case Return(e) ⇒ rewire("__return", List(transform(e)))
+        case Return(e) ⇒
+          if (!featureExists("__return", List(e.tpe))) {
+            c.error(tree.pos, "The DSL doesn't support the return of values!")
+          }
+          rewire("__return", List(transform(e)))
 
         case Assign(lhs, rhs) ⇒
+          if (!featureExists("__assign", List(lhs.tpe, rhs.tpe))) {
+            c.error(tree.pos, "The DSL doesn't support the assignment!")
+          }
           rewire("__assign", List(transform(lhs), transform(rhs)))
 
         // While and DoWhile: ImperativeDSL
         case LabelDef(sym, List(), If(cond, Block(body :: Nil, Apply(Ident(label), List())), Literal(Constant()))) if label == sym ⇒ // While
+          if (!featureExists("__whileDo", List(cond.tpe, body.tpe))) {
+            c.error(tree.pos, "The DSL doesn't support the while loops!")
+          }
           rewire("__whileDo", List(transform(cond), transform(body)))
         case LabelDef(sym, List(), Block(body :: Nil, If(cond, Apply(Ident(label), List()), Literal(Constant())))) if label == sym ⇒ // DoWhile
+          if (!featureExists("__doWhile", List(body.tpe, cond.tpe))) {
+            c.error(tree.pos, "The DSL doesn't support the do-while loops!")
+          }
           rewire("__doWhile", List(transform(body), transform(cond)))
 
         case t ⇒
@@ -337,8 +353,6 @@ final class MPDETransformer[C <: Context, T](
     def dummyTree(tpe: Type) = TypeApply(Select(Literal(Constant(())), newTermName("asInstanceOf")), List(constructTypeTree(tpe)))
 
     try { // this might be a performance problem later. For now it will do the work.
-      log("* " * 10)
-      log("testing feature: " + feature)
       c.typeCheck(Block(composeDSL(Apply(Select(This(className), newTermName(feature)), args.map(dummyTree))), Literal(Constant(()))))
       true
     } catch {
