@@ -31,7 +31,7 @@ final class MPDETransformer[C <: Context, T](
     log("Body: " + show(block.tree))
     val ascrBody = new AscriptionTransformer().injectAscription(block.tree)
     log("Ascription: " + show(ascrBody))
-    val transfBody = new ScopeInjectionTransformer().transform(block.tree)
+    val transfBody = new ScopeInjectionTransformer().transform(ascrBody)
     log("Transformed Body: " + show(transfBody))
     // generates the Embedded DSL cake with the transformed "main" method.
     val dslClass = c.resetAllAttrs(composeDSL(transfBody))
