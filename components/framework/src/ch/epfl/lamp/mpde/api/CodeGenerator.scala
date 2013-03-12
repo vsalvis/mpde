@@ -8,9 +8,9 @@ trait CodeGenerator {
 
   def generateCode(className: String): String
 
-  def generateName(id: Int): String = s"generated$$bridge$$$id"
+  def generateName(id: Int): String = s"generated$$var$$$id"
 
-  //def main(): Any
+  def requiredToGenerateCode[Symbol](captured: List[Symbol]): List[Symbol] = captured
 
   /**
    * Should be used in compile-time code generation to replace free variables.

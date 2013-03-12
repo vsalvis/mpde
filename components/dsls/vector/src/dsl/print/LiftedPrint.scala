@@ -25,6 +25,9 @@ trait PrintDSL extends ScalaCompile with CodeGenerator with base.LiftBase with M
     """
   }
 
+  override def requiredToGenerateCode[Symbol](captured: List[Symbol]): List[Symbol] =
+    if (captured.length < 2) captured else List()
+
   override def interpret[T](): T = {
     if (compiledCode == null) {
       compiledCode = compile[T]

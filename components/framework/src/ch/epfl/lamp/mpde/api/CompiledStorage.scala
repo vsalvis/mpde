@@ -1,4 +1,5 @@
-package ch.epfl.lamp.mpde.api
+package ch.epfl.lamp.mpde
+package api
 
 import scala.collection.mutable.WeakHashMap
 
@@ -17,19 +18,16 @@ object CompiledStorage {
 
   def checkAndUpdate[T](dsl: String, current: List[Any], recompile: () ⇒ () ⇒ T): () ⇒ T = {
     if (!initialized(dsl)) {
-      println("init")
       val program = recompile()
       init(dsl, current, program)
       program
     } else {
       val (previous, compiled) = apply(dsl)
       if (previous.length != current.length || (previous zip current exists { case (old, now) ⇒ old != now })) {
-        println("recompile")
         val recompiled = recompile()
         map.update(dsl, (current, recompiled))
         recompiled
       } else {
-        println("retrieve")
         compiled.asInstanceOf[() ⇒ T]
       }
     }
