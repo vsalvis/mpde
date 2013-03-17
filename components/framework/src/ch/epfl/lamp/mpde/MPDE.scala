@@ -61,11 +61,11 @@ final class MPDETransformer[C <: Context, T](
 
     log(s"Pre eval: \n ${show(dslClassPre)}")
     // if the DSL inherits the StaticallyChecked trait stage it and do the static analysis
-    if (dslInstance(dslClassPre).isInstanceOf[StaticallyChecked])
-      dslInstance(dslClassPre).asInstanceOf[StaticallyChecked].staticallyCheck(c)
+    //if (false && dslInstance(dslClassPre).isInstanceOf[StaticallyChecked])
+    // dslInstance(dslClassPre).asInstanceOf[StaticallyChecked].staticallyCheck(c)
 
     // DSL returns what holes it needs
-    val requiredVariables = dslInstance(dslClassPre).asInstanceOf[BaseYinYang].stagingAnalyze().map(symbolById)
+    val requiredVariables = Nil //dslInstance(dslClassPre).asInstanceOf[BaseYinYang].stagingAnalyze().map(symbolById)
     val canCompile = requiredVariables.isEmpty
 
     val holes = allCaptured diff requiredVariables
@@ -86,84 +86,19 @@ final class MPDETransformer[C <: Context, T](
     def args(holes: List[Symbol]): String =
       holes.map({ y: Symbol ⇒ y.name.decoded }).mkString("", ",", "")
 
-    val dslTree = dslInstance(dslClassPre) match {
-      case dsl: CodeGenerator if canCompile ⇒
-        /*
-       * If DSL does not require run-time data it can be completely
-       * generated at compile time and wired for execution. 
-       */
-        val codeGenerator = dslInstance(dslClass).asInstanceOf[CodeGenerator]
+    // in this case we just call the interpret method
+    val retTypeTree: Tree = TypeTree(block.tree.tpe)
+    val argsCnt = args(holes).length
 
-        val code = s"""
-          ${codeGenerator generateCode className}          
-          new $className().apply(${args(allCaptured)})
-        """
-        log(s"generated: ${code}")
-        val parsed = c parse (code)
-
-        parsed
-      case dsl: CodeGenerator ⇒
-        /*
-       * If DSL need runtime info send it to run-time and install a guard for re-compilation based on required symbols. 
-       */
-        val nameCurrent = "current"
-        val nameClassName = "className"
-        val nameDSLInstance = "dslInstance"
-        val nameDSLProgram = "dslProgram"
-        val nameCompileStorage = "__compiledStorage"
-        val nameRecompile = "recompile"
-
-        val typeT = TypeTree(block.tree.tpe)
-
-        val valCurrent =
-          c parse s"val $nameCurrent: List[Any] = List(${requiredVariables map (_.name.decoded) mkString ", "})"
-
-        val valDslInstance = c parse s"val $nameDSLInstance = new $className()"
-
-        val retTypeTree: Tree = TypeTree(block.tree.tpe)
-
-        val argsCnt = args(holes).length
-        val functionTypeTree =
-          AppliedTypeTree(Select(Select(Ident("_root_"), "scala"), newTypeName("Function" + argsCnt)),
-            (0 until argsCnt).map(y ⇒ Ident(newTermName("scala.Any"))).toList ::: List(retTypeTree))
-
-        val recompileF = c parse s"def $nameRecompile(): () => Any = $nameDSLInstance.compile[Int]" match {
-          case DefDef(mods, name, tparams, vparamss, AppliedTypeTree(function0, _), TypeApply(compile, _)) ⇒
-            DefDef(mods, name, tparams, vparamss, AppliedTypeTree(function0, List(typeT)), TypeApply(compile, List(typeT, functionTypeTree)))
-        }
-
-        val guard = c parse s"""val $nameDSLProgram = 
-        $nameCompileStorage.checkAndUpdate[Int](${new scala.util.Random().nextInt}, $nameCurrent, $nameRecompile)""" match {
-          case ValDef(modes, name, tp, Apply(TypeApply(check, _), args)) ⇒
-            ValDef(modes, name, tp, Apply(TypeApply(check, List(functionTypeTree)), args))
-        }
-
-        val DSL = c parse s"$nameDSLProgram.apply(${args(holes)})"
-        val finalBlock = Block(
-          dslClass,
-          valCurrent,
-          valDslInstance,
-          recompileF,
-          guard,
-          DSL)
-
-        log("Guarded block:" + show(finalBlock))
-        finalBlock
-      case dsl: Interpreted ⇒
-        // in this case we just call the interpret method
-        val retTypeTree: Tree = TypeTree(block.tree.tpe)
-        val argsCnt = args(holes).length
-
-        Block(dslClass,
-          Apply(
-            TypeApply(
-              Select(constructor, newTermName(interpretMethod)),
-              List(retTypeTree)),
-            holes.map(Ident(_))))
-    }
+    val dslTree = Block(dslClass,
+      Apply(
+        TypeApply(
+          Select(constructor, newTermName(interpretMethod)),
+          List(retTypeTree)),
+        holes.map(Ident(_))))
 
     log("Final tree untyped: " + show(c.resetAllAttrs(dslTree)))
-    log("Final tree: " + show(c.typeCheck(c.resetAllAttrs(dslTree))))
+    //log("Final tree: " + show(c.typeCheck(c.resetAllAttrs(dslTree))))
     c.Expr[T](c.resetAllAttrs(dslTree))
   }
 
@@ -450,8 +385,8 @@ final class MPDETransformer[C <: Context, T](
   /*
   * Configuration parameters.
   */
-  def interpretMethod = "interpret"
   val holeMethod = "hole"
+  val interpretMethod = "interpret"
   val className = "generated$" + dslName.filter(_ != '.') + MPDETransformer.uID.incrementAndGet
   def constructTypeTree(inType: Type) = if (rep)
     constructRepTree(inType)
