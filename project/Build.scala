@@ -5,7 +5,7 @@ import Process._
 import com.typesafe.sbt.SbtScalariform
 import com.typesafe.sbt.SbtScalariform.ScalariformKeys
 
-object MPDEBuild extends Build {
+object YinYangBuild extends Build {
 
   lazy val formatSettings = SbtScalariform.scalariformSettings ++ Seq(
     ScalariformKeys.preferences in Compile := formattingPreferences,
@@ -59,7 +59,7 @@ object MPDEBuild extends Build {
    libraryDependencies += "EPFL" % "lms_2.10.1-RC1" % "0.3-SNAPSHOT"
   )
 
-  lazy val _mpde           = Project(id = "mpde",                  base = file(".")) aggregate (framework, vector_dsl, vector_dsl_test)
+  lazy val _yinyang           = Project(id = "yinyang",                  base = file(".")) aggregate (framework, vector_dsl, vector_dsl_test)
   lazy val framework       = Project(id = "mpde-framework",        base = file("components/framework"), settings = defaults)
   lazy val vector_dsl      = Project(id = "mpde-vector-dsl",       base = file("components/dsls/vector"), settings = defaults) dependsOn(framework)
   lazy val vector_dsl_test = Project(id = "mpde-vector-dsl-test",  base = file("components/dsls/vector-test"), settings = defaults) dependsOn(framework, vector_dsl)
