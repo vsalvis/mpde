@@ -648,9 +648,9 @@ final class YYTransformer[C <: Context, T](
         AppliedTypeTree(baseTree, typeTrees)
       }
 
-    case t @ SingleType(pre, sym) ⇒
-      val result = Select(This(newTypeName(className)), newTypeName(inType.typeSymbol.name.toString + ".type"))
-      result
+    //    case t @ SingleType(pre, sym) ⇒
+    //      val result = Select(This(newTypeName(className)), newTypeName(inType.typeSymbol.name.toString + ".type"))
+    //      result
 
     case another @ _ ⇒
       TypeTree(another)
