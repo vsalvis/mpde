@@ -57,10 +57,10 @@ class PrototypeSpec extends FlatSpec with ShouldMatchers {
       val dv = DenseVector(1, 2, 3)
       ()
     }
-  }
+  }*/
 
   it should "rewire language features to methods" in {
-    val x = dsl.la.laLift {
+    val x = dsl.la.laDebug {
       if (true) DenseVector(1, 2, 3) else { DenseVector(1, 2, 3) }
     }
     ()
@@ -72,7 +72,7 @@ class PrototypeSpec extends FlatSpec with ShouldMatchers {
     }
     ()
   }
-
+/*
   it should "rewire assignments, definition of vars and vals and return statements" in {
     val x = dsl.la.laLift {
       def main: Int = {
@@ -99,7 +99,7 @@ class PrototypeSpec extends FlatSpec with ShouldMatchers {
     }
     ()
   }
-  
+  */
   it should "not break on shadowing" in {
     val x = dsl.la.laLift {
       val w = 1

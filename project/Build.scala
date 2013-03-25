@@ -22,7 +22,7 @@ object YinYangBuild extends Build {
   lazy val scalaOrg = "org.scala-lang"
   lazy val defaults = Defaults.defaultSettings ++ formatSettings ++ Seq(
     // scala version + resolver
-    scalaHome := Some(file(Path.userHome + "/work/devl/scalac/myscala/build/pack")),
+    scalaHome := Some(file(Path.userHome + "/git/scala/build/pack")),
     scalaOrganization := scalaOrg,
     scalaVersion := "2.10.1-SNAPSHOT",
     resolvers in ThisBuild += ScalaToolsSnapshots,
