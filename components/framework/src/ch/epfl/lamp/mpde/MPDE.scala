@@ -654,6 +654,7 @@ final class YYTransformer[C <: Context, T](
     //      result
 
     case another @ _ ⇒
+      TypeTree(another)
   }
 
   def constructRepTree(inType: Type): Tree = { //transform Type1[Type2[...]] => Rep[Type1[Type2[...]]] for non-function types
