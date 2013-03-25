@@ -211,6 +211,7 @@ final class YYTransformer[C <: Context, T](
       (methods ++ lifted).toSeq.find(!methodsExist(_)) match {
         case Some(methodError) if lifted.contains(methodError) ⇒
           // report a language error
+          c.error(tree.pos, s"Feature $methodError not found")
           false
         case Some(methodError) ⇒
           // missing method
@@ -423,8 +424,8 @@ final class YYTransformer[C <: Context, T](
         case LabelDef(sym, List(), Block(body :: Nil, If(cond, Apply(Ident(label), List()), Literal(Constant())))) if label == sym ⇒ // DoWhile
           // if (!featureExists("__doWhile", List(body.tpe, cond.tpe))) {
           // c.error(tree.pos, "The DSL doesn't support the do-while loops!")
-          // }          
-          lifted += MethodInv(None, "__doWhile", Nil, List(cond.tpe, body.tpe))
+          // }
+          lifted += MethodInv(None, "__doWhile", Nil, List(body.tpe, cond.tpe))
           method("__doWhile", List(transform(body), transform(cond)))
         case _ ⇒
           super.transform(tree)
@@ -653,7 +654,6 @@ final class YYTransformer[C <: Context, T](
     //      result
 
     case another @ _ ⇒
-      TypeTree(another)
   }
 
   def constructRepTree(inType: Type): Tree = { //transform Type1[Type2[...]] => Rep[Type1[Type2[...]]] for non-function types
@@ -736,7 +736,9 @@ final class YYTransformer[C <: Context, T](
   //     }
   // }
 
-  case class MethodInv(tpe: Option[Type], name: String, targs: List[Tree], args: List[Type])
+  case class MethodInv(tpe: Option[Type], name: String, targs: List[Tree], args: List[Type]) {
+    override def toString(): String = name + (args.mkString("(", ", ", ")"))
+  }
   def methodsExist(methods: MethodInv*): Boolean = {
     val methodSet = methods.toSet
     def application(method: MethodInv): Tree = {
