@@ -238,7 +238,7 @@ trait ImperativeDSL extends VariableEmbeddingDSL with BooleanDSL {
 //}
 
 trait VectorDSL
-  extends ClassTagOps with IfThenElseDSL with ArrayDSL
+  extends ClassTagOps with ImperativeDSL with IfThenElseDSL with ArrayDSL
   with IntDSL with DoubleDSL with NumericOps with Base
   with Interpreted {
   type Vector[T] = VectorOps[T]
