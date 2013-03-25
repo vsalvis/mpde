@@ -24,17 +24,22 @@ class RepSpec extends FlatSpec with ShouldMatchers {
     //    }
   }
 
-  it should "lift Vector to Rep" in {
+  /*  it should "lift Vector to Rep" in {
 
     val x = dsl.la.laLiftRep {
       //      //val a: Vector[Int] = ???
       //      //val a: Vector[Int] = DenseVector(1, 2)
-      //
+
+      //val a: Vector[Int] = ???
+      //a: Any
+
       val a = DenseVector(1, 2)
-      val b = a
-      val c: Vector[Int] = DenseVector(1, 2, 3)
-      a.map(x ⇒ x + 2)
-      b.map(_ + 2)
+      //val b = a
+      //val c: Vector[Int] = DenseVector(1, 2, 3)
+      //a.map(x ⇒ x + 2)
+      a.reconstruct((x, y) ⇒ x + y)
+      a.reconstruct(_ + _)
+      //b.map(_ + 2)
       //
       //      //problem to transform
       //      //==> def testing[T >: Nothing <: Any](a: Int, b: T): Nothing = scala.this.Predef.???
@@ -42,5 +47,74 @@ class RepSpec extends FlatSpec with ShouldMatchers {
     }
 
     ()
+  }*/
+
+  /* it should "test ascription lift" in {
+
+    val x = dsl.la.laLiftRep {
+      //DenseVector(1, 2)
+      DenseVector(1, 2): Vector[Int]
+      //DenseVector(1, 2): Any
+      //1
+      //1: Int
+      //1: Double
+      //1: Any
+      //1: Vector[Int]
+
+      //val a: Vector[Int] = ???
+      //a: Any
+    }
+
+    ()
   }
+
+  it should "test __ifThenElse" in {
+
+    val x = dsl.la.laLiftRep {
+      if (true) 1: Int else 2.0: Double
+    }
+
+    ()
+  }*/
+
+  /* it should "test __ifThenElse" in {
+
+    val x = dsl.la.laLiftRep {
+      if (true) 1: Int else 2.0: Double
+    }
+
+    ()
+  }*/
+  /*it should "test function type lift" in {
+
+    val x = dsl.la.laLiftRep {
+      val a = (x: Int) ⇒ x + 5 //generated$dsllarepVectorDSL12.this.Rep[Int] => generated$dsllarepVectorDSL12.this.Rep[Int]
+      val b: Int ⇒ Byte ⇒ Double = ??? //generated$dsllarepVectorDSL12.this.Rep[Int] => generated$dsllarepVectorDSL12.this.Rep[Byte => Double]
+      val c: (Int, Byte) ⇒ Double = ??? //(generated$dsllarepVectorDSL12.this.Rep[Int], generated$dsllarepVectorDSL12.this.Rep[Byte]) => generated$dsllarepVectorDSL12.this.Rep[Double]
+      val d: Vector[Int] ⇒ Vector[Double] = ??? //generated$dsllarepVectorDSL12.this.Rep[dsl.la.Vector[Int]] => generated$dsllarepVectorDSL12.this.Rep[dsl.la.Vector[Double]]
+      val e: List[Int ⇒ Int] = ??? //generated$dsllarepVectorDSL12.this.Rep[List[Int => Int]]
+    }
+
+    ()
+  }*/
+
+  /*it should "test ascription transformation" in {
+
+    val x = dsl.la.laLiftRep {
+      val a = 5
+      val b = 3 + a
+      val e: Int ⇒ Int = ???
+      val f = a
+      a + b
+      val bvar: Int = 5
+      val cvar = DenseVector(1, 2)
+      val dvar = DenseVector(1.0, 2.0)
+      def testMethod(a: Any, c: Vector[Int])(d: Double): Vector[Int] = DenseVector(1, bvar, 3)
+      testMethod(bvar, cvar)(bvar)
+      def testMethod2(a: Double, b: Vector[Double]): Vector[Double] = DenseVector(1.0)
+      val g = testMethod2(1.0, dvar)
+    }
+
+    ()
+  }*/
 }

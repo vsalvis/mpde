@@ -1,5 +1,6 @@
 package dsl.la.rep
 
+import ch.epfl.lamp.yinyang.api._
 import base._
 import scala.reflect.ClassTag
 
@@ -9,8 +10,10 @@ import scala.reflect.ClassTag
  * 
  * We need to provide the interface for basic Scala library features. 
  */
-trait Base extends LiftBase {
+trait Base extends BaseYinYang {
   type Rep[+T]
+
+  def main(): Any
 }
 
 trait ClassTagOps extends Base {
@@ -142,10 +145,12 @@ trait IntDSL extends Base {
 
   implicit object LiftInt extends LiftEvidence[Int, Rep[Int]] {
     def lift(v: Int): Rep[Int] = ???
+    def hole(tpe: Manifest[Any], symbolId: Int): Rep[Int] = ???
   }
 
   implicit object LiftUnit extends LiftEvidence[scala.Unit, Unit] {
     def lift(v: Unit): Unit = ()
+    def hole(tpe: Manifest[Any], symbolId: Int): Unit = ???
   }
 
   //TODO (TOASK) do we need such object
@@ -183,6 +188,7 @@ trait DoubleDSL extends Base {
 
   implicit object LiftDouble extends LiftEvidence[Double, Rep[Double]] {
     def lift(v: Double): Rep[Double] = ???
+    def hole(tpe: Manifest[Any], symbolId: Int): Rep[Double] = ???
   }
 
   //TODO (TOASK) do we need such object
@@ -242,9 +248,23 @@ trait ArrayDSL extends Base {
 //
 //}
 
-trait VectorDSL extends ArrayDSL with IntDSL with DoubleDSL with ClassTagOps with NumericOps with Base with Interpret {
+trait BooleanDSL extends Base {
+  implicit object LiftBoolean extends LiftEvidence[Boolean, Rep[Boolean]] {
+    def lift(v: Boolean): Rep[Boolean] = ???
+    def hole(tpe: Manifest[Any], symbolId: Int): Rep[Boolean] = ???
+  }
+}
 
-  def interpret[T]() = ???
+trait IfThenElseDSL extends Base with BooleanDSL {
+  def __ifThenElse[T](c: ⇒ Rep[Boolean], t: Rep[T], e: Rep[T]) = ???
+}
+
+trait VectorDSL
+  extends ArrayDSL with IntDSL with DoubleDSL with ClassTagOps
+  with NumericOps with Base with IfThenElseDSL with Interpreted
+  with BaseYinYang {
+
+  def interpret[T](params: Any*) = ???
 
   type Vector[T] = dsl.la.Vector[T]
 
@@ -252,6 +272,7 @@ trait VectorDSL extends ArrayDSL with IntDSL with DoubleDSL with ClassTagOps wit
     def *(v: Rep[Vector[T]]): Rep[Vector[T]]
     def +(v: Rep[Vector[T]]): Rep[Vector[T]]
     def map[U: Numeric: ClassTag](v: Rep[T] ⇒ Rep[U]): Rep[Vector[U]]
+    def reconstruct[U: Numeric: ClassTag](v: (Rep[T], Rep[T]) ⇒ Rep[U]): Rep[Vector[U]]
 
     def negate: Rep[Vector[T]]
     def length: Rep[Double]
@@ -288,6 +309,7 @@ trait VectorDSL extends ArrayDSL with IntDSL with DoubleDSL with ClassTagOps wit
     def *(v: Rep[Vector[T]]): Rep[Vector[T]] = ???
     def +(v: Rep[Vector[T]]): Rep[Vector[T]] = ???
     def map[U: Numeric: ClassTag](v: Rep[T] ⇒ Rep[U]): Rep[Vector[U]] = ???
+    def reconstruct[U: Numeric: ClassTag](v: (Rep[T], Rep[T]) ⇒ Rep[U]): Rep[Vector[U]] = ???
 
     def negate: Rep[Vector[T]] = ???
     def length: Rep[Double] = ???

@@ -1,6 +1,6 @@
 package base
 
-import ch.epfl.lamp.mpde.api._
+import ch.epfl.lamp.yinyang.api._
 import scala.tools.nsc._
 import scala.tools.nsc.util._
 import scala.tools.nsc.reporters._
@@ -13,18 +13,20 @@ trait ScalaCompile extends CodeGenerator {
 
   var compiler: Global = _
   var reporter: ConsoleReporter = _
+  val COLON = System getProperty "path.separator"
 
   def setupCompiler() = {
     val settings = new Settings()
 
     settings.classpath.value = this.getClass.getClassLoader match {
-      case ctx: java.net.URLClassLoader ⇒ ctx.getURLs.map(_.getPath).mkString(":")
+      case ctx: java.net.URLClassLoader ⇒ ctx.getURLs.map(_.getPath).mkString(COLON)
       case _                            ⇒ System.getProperty("java.class.path")
     }
     settings.bootclasspath.value = Predef.getClass.getClassLoader match {
-      case ctx: java.net.URLClassLoader ⇒ ctx.getURLs.map(_.getPath).mkString(":")
+      case ctx: java.net.URLClassLoader ⇒ ctx.getURLs.map(_.getPath).mkString(COLON)
       case _                            ⇒ System.getProperty("sun.boot.class.path")
     }
+
     settings.encoding.value = "UTF-8"
     settings.outdir.value = "."
     settings.extdirs.value = ""
@@ -37,7 +39,7 @@ trait ScalaCompile extends CodeGenerator {
 
   var dumpGeneratedCode = false
 
-  def compile[T]: () ⇒ T = {
+  def compile[T: Manifest, Ret]: Ret = {
     if (this.compiler eq null)
       setupCompiler()
 
@@ -67,7 +69,7 @@ trait ScalaCompile extends CodeGenerator {
     val loader = new AbstractFileClassLoader(fileSystem, this.getClass.getClassLoader)
 
     val cls: Class[_] = loader.loadClass(className)
-    cls.getConstructor().newInstance().asInstanceOf[() ⇒ T]
+    cls.getConstructor().newInstance().asInstanceOf[Ret]
   }
 
 }

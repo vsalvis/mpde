@@ -19,16 +19,53 @@ class CodeGenSpec extends FlatSpec with ShouldMatchers {
     assert(x == 7, "Should return the value 7!")
   }
 
-  // TODO (Duy) This should work after the holes are made. 
-  /*"Dynamic code insertion" should "work" in {
+  "Dynamic code insertion" should "work" in {
     val x = 1
     val y = 2
 
     assert(
       liftPrint {
         val z = 4
-        println(x + y + z)
-        x + y + z
-      } == 7) // should print "7" and return "7"
-  }*/
+        println(z + x + y) // TODO x + y + z fails miserably
+        z + x + y
+      } == 7)
+  }
+
+  "Compile time code generating" should "work" in {
+    val y = 3
+    assert(
+      liftPrint {
+        val b = 0
+        println(y)
+        break(b) // do not recompile
+        1 + b
+      } == 1)
+
+  }
+
+  "Runtime code generating" should "not recompile" in {
+    val y = 3
+    for (i ← 0 to 2) {
+      assert(
+        liftPrint {
+          val b = 0
+          println(b)
+          break(y)
+          1 + b
+        } == 1)
+    }
+  }
+
+  "Runtime code generating" should "recompile" in {
+    for (i ← 0 to 2) {
+      assert(
+        liftPrint {
+          val b = 0
+          println(b)
+          break(i)
+          1 + b
+        } == 1)
+    }
+  }
+
 }

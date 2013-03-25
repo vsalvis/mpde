@@ -2,10 +2,11 @@ package dsl.la.norep
 
 import scala.reflect.ClassTag
 import base._
-import scala.reflect.macros.Context
-import scala.language.experimental.macros
+import ch.epfl.lamp.yinyang.api._
 
-trait Base extends LiftBase
+trait Base extends BaseYinYang {
+  def main(): Any
+}
 
 trait IntDSL extends Base {
   self: DoubleDSL with BooleanDSL ⇒
@@ -32,10 +33,12 @@ trait IntDSL extends Base {
   // v: Else Scala won't let you declare the object with abstract methods
   implicit object LiftInt extends LiftEvidence[scala.Int, Int] {
     def lift(v: scala.Int): Int = null // TODO: Wouldn't this better be a ???
+    def hole(tpe: Manifest[Any], symbolId: scala.Int): Int = null
   }
 
   implicit object LiftUnit extends LiftEvidence[scala.Unit, Unit] {
     def lift(v: Unit): Unit = ()
+    def hole(tpe: Manifest[Any], symbolId: scala.Int): Unit = ()
   }
 
   implicit object IntOrdering extends Ordering[Int] {
@@ -73,6 +76,7 @@ trait DoubleDSL extends Base {
   //TODO (TOASK) maybe extends LiftEvidence[scala.Double, DoubleDSL#Double]
   implicit object LiftDouble extends LiftEvidence[scala.Double, Double] {
     def lift(v: scala.Double): Double = ???
+    def hole(tpe: Manifest[Any], symbolId: scala.Int): Double = ???
   }
 
   implicit object DoubleOrdering extends Ordering[Double] {
@@ -108,8 +112,8 @@ trait NumericOps extends IntDSL with DoubleDSL with BooleanDSL with Base {
     def toInt(x: T): Int
     def toDouble(x: T): Double
 
-    def zero = fromInt(liftTerm(0))
-    def one = fromInt(liftTerm(1))
+    def zero = fromInt(lift(0))
+    def one = fromInt(lift(1))
 
     def abs(x: T): T = ???
     def signum(x: T): Int = ???
@@ -187,6 +191,7 @@ trait BooleanDSL extends Base {
 
   implicit object LiftBoolean extends LiftEvidence[scala.Boolean, Boolean] {
     def lift(v: scala.Boolean): Boolean = ???
+    def hole(tpe: Manifest[Any], symbolId: Int): Boolean = ???
   }
 }
 
@@ -232,8 +237,13 @@ trait ImperativeDSL extends VariableEmbeddingDSL with BooleanDSL {
 //  }
 //}
 
-trait VectorDSL extends ClassTagOps with VariableEmbeddingDSL with IfThenElseDSL with ArrayDSL with IntDSL with DoubleDSL with NumericOps with Base with Interpret {
+trait VectorDSL
+  extends ClassTagOps with IfThenElseDSL with ArrayDSL
+  with IntDSL with DoubleDSL with NumericOps with Base
+  with Interpreted {
   type Vector[T] = VectorOps[T]
+
+  def stagingAnalyze(): List[scala.Int] = Nil
 
   //TODO (NEW) (TOASK) - where should we provide implementation for methods of VectorOps
   trait VectorOps[T] {
@@ -241,6 +251,7 @@ trait VectorDSL extends ClassTagOps with VariableEmbeddingDSL with IfThenElseDSL
     def *(v: Vector[T]): Vector[T]
     def +(v: Vector[T]): Vector[T]
     def map[U: Numeric: ClassTag](v: T ⇒ U): Vector[U]
+    def reconstruct[U: Numeric: ClassTag](v: (T, T) ⇒ U): Vector[U]
 
     def baseVectors: Array[Vector[T]] //find base vectors
 
@@ -273,7 +284,7 @@ trait VectorDSL extends ClassTagOps with VariableEmbeddingDSL with IfThenElseDSL
     //    def apply[T <: AnyVal: Numeric: ClassTag](a: Map[Int, T]): Vector[T] = ???
   }
 
-  def interpret[T](): T = ???
+  def interpret[T: Manifest](params: Any*): T = ???
 
   /**
    * TODO how are we going to translate to objects and yet remain modular and reusable.
