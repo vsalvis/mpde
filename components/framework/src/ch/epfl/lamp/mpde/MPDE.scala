@@ -16,8 +16,9 @@ object YYTransformer {
                              debug: Boolean = false,
                              rep: Boolean = false,
                              refCheck: Boolean = false,
-                             slickHack: Boolean = false) =
-    new YYTransformer(c, dslName, shallow, debug, rep, slickHack)
+                             slickHack: Boolean = false,
+                             preprocess: (Context#Tree => Context#Tree) = (x => x)) =
+    new YYTransformer(c, dslName, shallow, debug, rep, slickHack, preprocess)
 
   protected[yinyang] val uID = new AtomicLong(0)
 }
@@ -30,11 +31,16 @@ final class YYTransformer[C <: Context, T](
   val debug: Boolean = false,
   val rep: Boolean = false,
   val slickHack: Boolean = false,
+  preprocess: (Context#Tree => Context#Tree) = (x => x),
   val mainMethod: String = "main") {
   import c.universe._
 
   val symbolIds: mutable.HashMap[Int, Symbol] = new mutable.HashMap()
   def symbolById(id: Int) = symbolIds(id)
+
+  object PreProcessTransformer extends (Tree => Tree) {
+    def apply(tree: Tree) = preprocess(tree.asInstanceOf[Context#Tree]).asInstanceOf[Tree]
+  }
 
   /**
    * Main YinYang method. Transforms the body of the DSL, makes the DSL cake out
@@ -55,7 +61,8 @@ final class YYTransformer[C <: Context, T](
       // mark captured variables as holes
       val allCaptured = freeVariables(block.tree)
       def transform(holes: List[Int], idents: List[Symbol])(block: Tree): Tree =
-        (AscriptionTransformer andThen
+        (PreProcessTransformer andThen
+          AscriptionTransformer andThen
           LiftLiteralTransformer(idents) andThen
           ScopeInjectionTransformer andThen
           HoleTransformer(holes) andThen
@@ -314,6 +321,7 @@ final class YYTransformer[C <: Context, T](
   }
 
   object AscriptionTransformer extends (Tree => Tree) {
+    //def apply(tree: Tree) = new AscriptionTransformer().transform(tree)
     def apply(tree: Tree) = tree //new AscriptionTransformer().transform(tree)
   }
 
@@ -353,6 +361,8 @@ final class YYTransformer[C <: Context, T](
             externalApplyFound = false
             Typed(baseTree, TypeTree(ap.tpe))
           }
+        case ClassDef(_, _, _, _) => tree
+        case ModuleDef(_, _, _)   => tree
         case _ =>
           super.transform(tree)
       }
@@ -381,6 +391,8 @@ final class YYTransformer[C <: Context, T](
           lift(t)
         case t @ Ident(_) if idents.contains(t.symbol) =>
           lift(t)
+        case ClassDef(_, _, _, _) => tree
+        case ModuleDef(_, _, _)   => tree
         case _ =>
           super.transform(tree)
       }
@@ -396,6 +408,8 @@ final class YYTransformer[C <: Context, T](
     val lifted = mutable.ArrayBuffer[DSLFeature]()
     override def transform(tree: Tree): Tree = {
       tree match {
+        case ClassDef(_, _, _, _) => tree
+        case ModuleDef(_, _, _)   => tree
         case t @ If(cond, then, elze) =>
           lifted += DSLFeature(None, "__ifThenElse", Nil, List(List(cond.tpe, then.tpe, elze.tpe)))
           method("__ifThenElse", List(transform(cond), transform(then), transform(elze)))
@@ -475,6 +489,8 @@ final class YYTransformer[C <: Context, T](
 
       val result = tree match {
         //provide Def trees with NoSymbol (for correct show(tree)
+        case ClassDef(_, _, _, _) => tree
+        case ModuleDef(_, _, _)   => tree
         case vdDef: ValOrDefDef => {
           val retDef = super.transform(tree)
           retDef.setSymbol(NoSymbol)
@@ -517,7 +533,6 @@ final class YYTransformer[C <: Context, T](
         // Removes all import statements (for now).
         case Import(_, _) =>
           EmptyTree
-
         case _ =>
           super.transform(tree)
       }
