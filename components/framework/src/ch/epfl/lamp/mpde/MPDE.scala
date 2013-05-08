@@ -489,8 +489,9 @@ final class YYTransformer[C <: Context, T](
 
       val result = tree match {
         //provide Def trees with NoSymbol (for correct show(tree)
-        case ClassDef(_, _, _, _) => tree
-        case ModuleDef(_, _, _)   => tree
+        case ClassDef(_, _, _, _)                                       => tree
+        case ModuleDef(_, _, _)                                         => tree
+        case DefDef(mods, _, _, _, _, _) if mods.hasFlag(Flag.IMPLICIT) => tree // FIXME
         case vdDef: ValOrDefDef => {
           val retDef = super.transform(tree)
           retDef.setSymbol(NoSymbol)
@@ -512,6 +513,7 @@ final class YYTransformer[C <: Context, T](
         case s @ Select(inn, name) =>
           Ident(name)
 
+        // TODO: (Amir) Seems to be a bit buggy!
         //Added to rewire inherited methods to this class
         case th @ This(_) =>
           This(newTypeName(className))
@@ -723,7 +725,7 @@ final class YYTransformer[C <: Context, T](
   private def constructor = Apply(Select(New(Ident(newTypeName(className))),
     nme.CONSTRUCTOR), List())
 
-  def composeDSL(transformedBody: Tree) =
+  def composeDSL(transformedBody: Tree) = if (!slickHack)
     // class MyDSL extends DSL {
     ClassDef(Modifiers(), newTypeName(className), List(),
       Template(List(dslTrait), emptyValDef,
@@ -736,6 +738,131 @@ final class YYTransformer[C <: Context, T](
             Ident(newTypeName("Any")), transformedBody))))
   //     }
   // }
+  else {
+    val virtualizedClassNames = new mutable.ArrayBuffer[String]()
+    val (classes, newBody) = transformedBody match {
+      case Block(stmts, expr) => {
+        val (classes, others) = stmts partition {
+          case ClassDef(_, name, _, _) => { virtualizedClassNames += name.toString; true }
+          case ModuleDef(_, _, _)      => true
+          case _                       => false
+        }
+
+        // val typeAliases = classes collect {
+        //   case ClassDef(_, name, _, _) =>
+        //     TypeDef(NoMods, name, List(), Select(This(newTypeName(className)), name))
+        // }
+        // ((classes, typeAliases ++ others), expr)
+        log("virtualizedClassNames: \n" + virtualizedClassNames.mkString("\n"))
+        // val newBlock = Block(others, expr)
+        val newBlock = new VirtualizedClassTypeTransformer(virtualizedClassNames.toList).transform(Block(others, expr))
+        (classes, newBlock)
+      }
+      // case expr => ((Nil, Nil), expr)
+      case expr => (Nil, expr)
+    }
+    ClassDef(Modifiers(), newTypeName(className), List(),
+      Template(List(dslTrait), emptyValDef,
+        classes ++
+          List(
+            DefDef(Modifiers(), nme.CONSTRUCTOR, List(), List(List()), TypeTree(),
+              Block(List(Apply(Select(Super(This(tpnme.EMPTY), tpnme.EMPTY),
+                nme.CONSTRUCTOR), List())), Literal(Constant(())))),
+            // def main = {
+            DefDef(Modifiers(), newTermName(mainMethod), List(), List(List()),
+              Ident(newTypeName("Any")), newBody))))
+  }
+
+  private final class VirtualizedClassTypeTransformer(virtualizedClassNames: List[String]) extends Transformer {
+    def isVirtualizedType(tpe: Type): Boolean =
+      virtualizedClassNames.contains(tpe.typeSymbol.name.toString)
+    def contructVirtualType(inType: Type): Tree = inType match {
+
+      case TypeRef(pre, sym, Nil) if rewiredToThis(inType.typeSymbol.name.toString) =>
+        SingletonTypeTree(This(tpnme.EMPTY))
+
+      case TypeRef(pre, sym, Nil) =>
+        if (isVirtualizedType(inType))
+          Select(This(newTypeName(className)), toType(inType.typeSymbol))
+        else
+          TypeTree(inType)
+      case TypeRef(pre, sym, args) if isFunctionType(inType) =>
+        AppliedTypeTree(Select(Ident(newTermName("scala")), toType(sym)),
+          args map { x => contructVirtualType(x) })
+
+      case TypeRef(pre, sym, args) => {
+        // FIXME for the cases in which in the case of type `A[T]`, `A` is virtualized type as well
+        // val liftedArgs =
+        //   args map { x => contructVirtualType(x) }
+        // AppliedTypeTree(Select(This(newTypeName(className)), toType(sym)),
+        // AppliedTypeTree(Ident(sym),
+        // liftedArgs)
+        AppliedTypeTree(Select(Ident(newTermName("scala")), toType(sym)),
+          args map { x => contructVirtualType(x) })
+      }
+
+      case ConstantType(t) =>
+        if (isVirtualizedType(inType))
+          Select(This(newTypeName(className)), toType(inType.typeSymbol))
+        else
+          TypeTree(inType)
+
+      case SingleType(pre, name) if rewiredToThis(inType.typeSymbol.name.toString) =>
+        SingletonTypeTree(This(tpnme.EMPTY))
+
+      case SingleType(pre, name) if inType.typeSymbol.isModuleClass =>
+        if (isVirtualizedType(inType))
+          SingletonTypeTree(Select(This(newTypeName(className)),
+            newTermName(inType.typeSymbol.name.toString)))
+        else
+          TypeTree(inType)
+
+      case s @ SingleType(pre, name) if inType.typeSymbol.isClass =>
+        contructVirtualType(
+          s.asInstanceOf[scala.reflect.internal.Types#SingleType]
+            .underlying.asInstanceOf[YYTransformer.this.c.universe.Type])
+
+      case another @ _ =>
+        println(("!" * 10) + s"""Missed: $inType = ${
+          showRaw(another)
+        } name = ${inType.typeSymbol.name}""")
+        TypeTree(another)
+    }
+
+    override def transform(tree: Tree): Tree = {
+      tree match {
+        case typTree: TypTree if typTree.tpe != null =>
+          contructVirtualType(typTree.tpe)
+        case TypeApply(mth, targs) => {
+          val liftedTargs =
+            targs map (transform(_))
+          TypeApply(transform(mth), liftedTargs)
+        }
+        case fun @ Function(vparams, body) => {
+          log(("=" * 10) + s"closure found: $fun")
+          val newVparams = vparams map {
+            case ValDef(mods, name, tpt, rhs) => {
+              log(c.universe.showRaw(tpt))
+              val newTpt = tpt match {
+                case Select(_, name) if virtualizedClassNames.contains(name.toString) =>
+                  TypeTree()
+                case _ =>
+                  tpt
+              }
+              // val newTpt =
+              //   if (tpt.tpe != null && isVirtualizedType(tpt.tpe))
+              //     Ident("Any")
+              //   else
+              //     tpt
+              ValDef(mods, name, newTpt, rhs)
+            }
+          }
+          Function(newVparams, transform(body))
+        }
+        case _ => super.transform(tree)
+      }
+    }
+  }
 
   def log(s: => String) = if (debug) println(s)
 
