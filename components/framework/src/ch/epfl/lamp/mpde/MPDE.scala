@@ -61,11 +61,12 @@ final class YYTransformer[C <: Context, T](
       // mark captured variables as holes
       val allCaptured = freeVariables(block.tree)
       def transform(holes: List[Int], idents: List[Symbol])(block: Tree): Tree =
-        (PreProcessTransformer andThen
+        ( //PreProcessTransformer andThen
           AscriptionTransformer andThen
           LiftLiteralTransformer(idents) andThen
           ScopeInjectionTransformer andThen
           HoleTransformer(holes) andThen
+          PreProcessTransformer andThen
           composeDSL)(block)
 
       val dslPre = transform(allCaptured map symbolId, Nil)(block.tree)
@@ -843,12 +844,21 @@ final class YYTransformer[C <: Context, T](
           val newVparams = vparams map {
             case ValDef(mods, name, tpt, rhs) => {
               log(c.universe.showRaw(tpt))
+              // log(c.universe.showRaw(tpt.tpe))
+              // def containsVirtualizedTpt()
               val newTpt = tpt match {
                 case Select(_, name) if virtualizedClassNames.contains(name.toString) =>
                   TypeTree()
+                // case AppliedTypeTree(_, tpts) => {
+                //   log("arguments:")
+                //   tpts.foreach(x => log(c.universe.showRaw(x)))
+                //   tpts.foreach(x => log(c.universe.showRaw(x.tpe)))
+                //   tpt
+                // }
                 case _ =>
-                  tpt
+                  transform(tpt)
               }
+
               // val newTpt =
               //   if (tpt.tpe != null && isVirtualizedType(tpt.tpe))
               //     Ident("Any")
