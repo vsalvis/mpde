@@ -299,6 +299,9 @@ final class YYTransformer[C <: Context, T](
         definedMethods += dd.symbol
         vparamss.flatten.foreach(traverse)
         traverse(rhs)
+      case bind @ Bind(name, body) =>
+        definedValues += bind.symbol
+        traverse(body)
       case _ =>
         super.traverse(tree)
     }
@@ -485,6 +488,7 @@ final class YYTransformer[C <: Context, T](
     var ident = 0
 
     override def transform(tree: Tree): Tree = {
+      log(" " * ident + " ::> " + tree.getClass().toString)
       log(" " * ident + " ==> " + tree)
       ident += 1
 
@@ -497,6 +501,18 @@ final class YYTransformer[C <: Context, T](
           val retDef = super.transform(tree)
           retDef.setSymbol(NoSymbol)
           retDef
+        }
+
+        // case Annotated(annot, arg) =>
+        //   Annotated(annot, transform(arg))
+        case CaseDef(pat: Tree, guard: Tree, body: Tree) => {
+          println(showRaw(tree))
+          // super.transform(tree)
+          val newPat = pat match {
+            case Apply(fun: TypeTree, args) => transform(Apply(fun.original, args))
+            case _                          => transform(pat)
+          }
+          CaseDef(newPat, transform(guard), transform(body))
         }
 
         case typTree: TypTree if typTree.tpe != null =>
@@ -632,6 +648,24 @@ final class YYTransformer[C <: Context, T](
       constructPolyTree(
         s.asInstanceOf[scala.reflect.internal.Types#SingleType]
           .underlying.asInstanceOf[YYTransformer.this.c.universe.Type])
+
+    case annTpe @ AnnotatedType(annotations, underlying, selfsym) => {
+      // TypeTree(annTpe) match {
+      //   case Annotated(annot, arg) => Annotated(annot, constructPolyTree(underlying))
+      //   case x                     => println(s"ANNOTATED NOT FOUND ${showRaw(x)}"); constructPolyTree(underlying)
+      // }
+      // TypeTree(AnnotatedType(annotations, constructPolyTree(underlying).tpe, selfsym))
+      // FIXME it removes annotation, which needs to be fixed for sure!
+      constructPolyTree(underlying)
+      // TypeTree()
+    }
+
+    // case MethodType(params: List[Symbol], resultType: Type) => {
+    //   println(params.toString)
+    //   println(resultType.toString)
+    //   // FIXME 
+    //   constructPolyTree(resultType)
+    // }
 
     case another @ _ =>
       println(("!" * 10) + s"""Missed: $inType = ${
@@ -824,7 +858,7 @@ final class YYTransformer[C <: Context, T](
             .underlying.asInstanceOf[YYTransformer.this.c.universe.Type])
 
       case another @ _ =>
-        println(("!" * 10) + s"""Missed: $inType = ${
+        println(("!?" * 10) + s"""Missed: $inType = ${
           showRaw(another)
         } name = ${inType.typeSymbol.name}""")
         TypeTree(another)
