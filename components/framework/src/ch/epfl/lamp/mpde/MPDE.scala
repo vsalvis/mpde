@@ -73,13 +73,16 @@ final class YYTransformer[C <: Context, T](
 
       log(s"Pre Eval: ${show(dslPre)}")
       // if the DSL inherits the StaticallyChecked trait reflectively do the static analysis
-      if (reflInstance(dslPre).isInstanceOf[StaticallyChecked])
+      if (!slickHack && reflInstance(dslPre).isInstanceOf[StaticallyChecked])
         reflInstance(dslPre).asInstanceOf[StaticallyChecked].staticallyCheck(c)
 
       // DSL returns what holes it needs
       val reqVars =
-        reflInstance(dslPre).asInstanceOf[BaseYinYang].stagingAnalyze(allCaptured map symbolId)
-          .map(symbolById)
+        if (!slickHack)
+          reflInstance(dslPre).asInstanceOf[BaseYinYang].stagingAnalyze(allCaptured map symbolId)
+            .map(symbolById)
+        else
+          allCaptured
       val holes = allCaptured diff reqVars
 
       // re-transform the tree with new holes if there are required vars
@@ -121,7 +124,8 @@ final class YYTransformer[C <: Context, T](
               )
               program.apply(${args(holes)})
             """
-            case _: Interpreted => s"""
+            // case _: Interpreted | 
+            case _ => s"""
               def invalidate(): () => Any = () => dslInstance.reset
               ch.epfl.lamp.yinyang.runtime.YYStorage.$guardType[Any](
                 ${programId}L, values, refs, invalidate
@@ -133,9 +137,11 @@ final class YYTransformer[C <: Context, T](
           Block(dsl, guardedExecute)
       }
 
-      log(s"""Final untyped: ${show(c.resetAllAttrs(dslTree))}
-        Final typed: ${show(c.typeCheck(c.resetAllAttrs(dslTree)))}""")
+      // log(s"""Final untyped: ${show(c.resetAllAttrs(dslTree))}
+      // Final typed: ${show(c.typeCheck(c.resetAllAttrs(dslTree)))}""")
       c.Expr[T](c.resetAllAttrs(dslTree))
+      // c.Expr[T](c.resetLocalAttrs(dslTree))
+      // c.Expr[T](dslTree)
     }
   }
 
@@ -490,12 +496,14 @@ final class YYTransformer[C <: Context, T](
     override def transform(tree: Tree): Tree = {
       log(" " * ident + " ::> " + tree.getClass().toString)
       log(" " * ident + " ==> " + tree)
+      log(" " * ident + " **> " + showRaw(tree))
       ident += 1
 
       val result = tree match {
         //provide Def trees with NoSymbol (for correct show(tree)
         case ClassDef(_, _, _, _)                                       => tree
         case ModuleDef(_, _, _)                                         => tree
+        case TypeDef(_, _, _, _)                                        => tree
         case DefDef(mods, _, _, _, _, _) if mods.hasFlag(Flag.IMPLICIT) => tree // FIXME
         case vdDef: ValOrDefDef => {
           val retDef = super.transform(tree)
@@ -506,7 +514,7 @@ final class YYTransformer[C <: Context, T](
         // case Annotated(annot, arg) =>
         //   Annotated(annot, transform(arg))
         case CaseDef(pat: Tree, guard: Tree, body: Tree) => {
-          println(showRaw(tree))
+          log(showRaw(tree))
           // super.transform(tree)
           val newPat = pat match {
             case Apply(fun: TypeTree, args) => transform(Apply(fun.original, args))
@@ -558,6 +566,7 @@ final class YYTransformer[C <: Context, T](
 
       ident -= 1
       log(" " * ident + " <== " + result)
+      log(" " * ident + " <** " + showRaw(result))
 
       result
     }
@@ -747,7 +756,9 @@ final class YYTransformer[C <: Context, T](
   /**
    * Reflectively instantiate and memoize a DSL instance.
    */
-  private def reflInstance(dslDef: Tree) = {
+  private def reflInstance(dslDef: Tree): Object = {
+    if (slickHack)
+      return Some(new Object())
     if (_reflInstance == None) {
       val st = System.currentTimeMillis()
       _reflInstance = Some(c.eval(
@@ -778,10 +789,44 @@ final class YYTransformer[C <: Context, T](
     val (classes, newBody) = transformedBody match {
       case Block(stmts, expr) => {
         val (classes, others) = stmts partition {
-          case ClassDef(_, name, _, _) => { virtualizedClassNames += name.toString; true }
-          case ModuleDef(_, _, _)      => true
-          case _                       => false
+          // case ClassDef(_, name, _, _) => { virtualizedClassNames += name.toString; true }
+          // case ClassDef(_, _, _, _) => true
+          // case ModuleDef(_, _, _)      => true
+          case TypeDef(_, name, _, _) => { virtualizedClassNames += name.toString.dropRight("Row".length); true }
+          // case ValDef(mods, _, _, _) if mods.hasFlag(Flag.LOCAL) => true
+          case _                      => false
         }
+
+        // val newClasses = classes map {
+        //   case TypeDef(mods: Modifiers, name: TypeName, tparams: List[TypeDef], rhs: Tree) => {
+        //     def enclClass: ClassSymbol = c.enclosingClass.symbol match {
+        //       case x: ModuleSymbol => x.moduleClass.asClass
+        //       case x: ClassSymbol  => x
+        //     }
+        //     def enclMethod = c.enclosingMethod match {
+        //       case null =>
+        //         c.warning(c.enclosingPosition, s"enclosingMethod is null, using $enclClass instead.")
+        //         enclClass
+        //       case m => m.symbol
+        //     }
+        //     import build._
+        //     // val ddef = newNestedSymbol(enclMethod, name, enclMethod.pos, Flag.PRIVATE | METHOD, isClass = false)
+        //     val tdef = newNestedSymbol(enclMethod, newTypeName(name.toString), enclMethod.pos, NoFlags, isClass = false)
+        //     // val params = vparams map { vd =>
+        //     //   val sym = newNestedSymbol(ddef, vd.name, ddef.pos, Flag.PARAM, isClass = false)
+        //     //   setTypeSignature(sym, vd.tpt.tpe)
+        //     //   vd setSymbol sym
+        //     //   sym
+        //     // }
+        //     val rhsTpe = rhs.asInstanceOf[TypeTree]
+        //     val rhsSymbol = rhsTpe.original.symbol
+        //     val newRhsSymbol = setTypeSignature(tdef, TypeRef(rhsSymbol.typeSignature, rhsSymbol, Nil)).asType
+        //     TypeDef(mods, newTypeName(name.toString.dropRight(2)), tparams, Ident(newRhsSymbol))
+        //   }
+        //   case other => other
+        // }
+
+        // val newClasses = classes
 
         // val typeAliases = classes collect {
         //   case ClassDef(_, name, _, _) =>
@@ -791,6 +836,7 @@ final class YYTransformer[C <: Context, T](
         log("virtualizedClassNames: \n" + virtualizedClassNames.mkString("\n"))
         // val newBlock = Block(others, expr)
         val newBlock = new VirtualizedClassTypeTransformer(virtualizedClassNames.toList).transform(Block(others, expr))
+        // (newClasses, newBlock)
         (classes, newBlock)
       }
       // case expr => ((Nil, Nil), expr)
@@ -818,7 +864,8 @@ final class YYTransformer[C <: Context, T](
 
       case TypeRef(pre, sym, Nil) =>
         if (isVirtualizedType(inType))
-          Select(This(newTypeName(className)), toType(inType.typeSymbol))
+          // Select(This(newTypeName(className)), toType(inType.typeSymbol))
+          Select(This(newTypeName(className)), newTypeName(inType.typeSymbol.name.toString + "Row"))
         else
           TypeTree(inType)
       case TypeRef(pre, sym, args) if isFunctionType(inType) =>
@@ -832,13 +879,14 @@ final class YYTransformer[C <: Context, T](
         // AppliedTypeTree(Select(This(newTypeName(className)), toType(sym)),
         // AppliedTypeTree(Ident(sym),
         // liftedArgs)
-        AppliedTypeTree(Select(Ident(newTermName("scala")), toType(sym)),
+        AppliedTypeTree(Select(Ident(newTermName("scalaYY")), toType(sym)),
           args map { x => contructVirtualType(x) })
       }
 
       case ConstantType(t) =>
         if (isVirtualizedType(inType))
-          Select(This(newTypeName(className)), toType(inType.typeSymbol))
+          // Select(This(newTypeName(className)), toType(inType.typeSymbol))
+          Select(This(newTypeName(className)), newTypeName(inType.typeSymbol.name.toString + "Row"))
         else
           TypeTree(inType)
 
@@ -848,7 +896,8 @@ final class YYTransformer[C <: Context, T](
       case SingleType(pre, name) if inType.typeSymbol.isModuleClass =>
         if (isVirtualizedType(inType))
           SingletonTypeTree(Select(This(newTypeName(className)),
-            newTermName(inType.typeSymbol.name.toString)))
+            newTermName(inType.typeSymbol.name.toString + "Row")))
+        // newTermName(inType.typeSymbol.name.toString)))
         else
           TypeTree(inType)
 
